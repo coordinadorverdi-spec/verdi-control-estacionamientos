@@ -1,21 +1,23 @@
 <!doctype html>
 <html lang="es">
-<head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>VERDI · Control de Estacionamientos</title>
-<link rel="stylesheet" href="styles.css">
-</head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>VERDI · Control de Estacionamientos</title><link rel="stylesheet" href="styles.css"></head>
 <body>
 <header class="topbar"><div><div class="brand">VERDI</div><div class="subtitle">Control de Estacionamientos</div></div><div class="status"><span></span> Sistema operativo</div></header>
 <main>
-<section class="hero"><div><h1>Control de acceso</h1><p>Registra ingresos y salidas de vehículos de forma rápida.</p></div><div class="clock" id="clock"></div></section>
+<section class="hero"><div><h1>Control de acceso</h1><p>Busca por placa o departamento y registra ENTRADA / SALIDA en segundos.</p></div><div class="clock" id="clock"></div></section>
 <section class="grid">
-<div class="card access-card"><h2>Registrar movimiento</h2><label>Placa del vehículo</label><div class="plate-row"><input id="plate" maxlength="8" placeholder="ABC-123" autocomplete="off"><button id="searchBtn">Buscar</button></div><div id="vehicleInfo" class="vehicle-info hidden"></div><div class="actions"><button class="entry" id="entryBtn" disabled>ENTRADA</button><button class="exit" id="exitBtn" disabled>SALIDA</button></div><div id="message" class="message"></div></div>
+<div class="card access-card">
+<h2>Registrar movimiento</h2>
+<div class="search-tabs"><button class="tab active" data-mode="plate">🔎 Por placa</button><button class="tab" data-mode="dept">🏠 Por Dpto.</button></div>
+<div id="plateSearch" class="search-panel"><label>Placa del vehículo</label><div class="plate-row"><input id="plate" maxlength="8" placeholder="ABC-123" autocomplete="off"><button id="searchBtn">Buscar</button></div></div>
+<div id="deptSearch" class="search-panel hidden"><label>Departamento</label><div class="plate-row"><select id="department"><option value="">Seleccione Dpto.</option></select><button id="deptBtn">Buscar</button></div><div id="deptCars" class="dept-cars"></div></div>
+<div id="vehicleInfo" class="vehicle-info hidden"></div>
+<div id="newVehicle" class="new-vehicle hidden"><h3>Registrar nueva placa</h3><p>El residente fue identificado. Marca el check para guardar el vehículo y comenzar su control desde este movimiento.</p><div class="form-grid"><label>Residente<input id="newOwner" placeholder="Nombre del residente"></label><label>Dpto.<input id="newDept" placeholder="Ej. 1204"></label><label>Tipo<select id="newType"><option value="auto">Auto</option><option value="moto">Moto</option><option value="bicicleta">Bicicleta</option><option value="otro">Otro</option></select></label><label>Cocheras (opcional)<input id="newSpaces" placeholder="Ej. 45, 46"></label></div><label class="check"><input type="checkbox" id="registerVehicle" checked> Registrar esta placa en la base de vehículos</label></div>
+<div class="actions"><button class="entry" id="entryBtn" disabled>ENTRÓ</button><button class="exit" id="exitBtn" disabled>SALIÓ</button></div><div id="message" class="message"></div>
+</div>
 <div class="card stats"><h2>Estado actual</h2><div class="stat"><strong id="inside">0</strong><span>Vehículos dentro</span></div><div class="stat"><strong id="events">0</strong><span>Movimientos hoy</span></div><div class="stat"><strong id="authorized">0</strong><span>Vehículos registrados</span></div></div>
 </section>
-<section class="card history"><div class="section-head"><h2>Últimos movimientos</h2><button id="clearBtn" class="ghost">Limpiar demo</button></div><div class="table-wrap"><table><thead><tr><th>Hora</th><th>Placa</th><th>Propietario</th><th>Movimiento</th><th>Estado</th></tr></thead><tbody id="history"></tbody></table></div></section>
-<section class="demo"><b>Modo prueba:</b> usa <button class="chip" data-plate="ABC-123">ABC-123</button>, <button class="chip" data-plate="VER-001">VER-001</button> o <button class="chip" data-plate="XYZ-789">XYZ-789</button>. Una placa no registrada será rechazada.</section>
-</main>
-<footer>VERDI · Prototipo funcional para pruebas de operación · Datos de prueba almacenados en este dispositivo</footer>
-<script src="app.js"></script>
-</body></html>
+<section class="card history"><div class="section-head"><h2>Últimos movimientos</h2><button id="clearBtn" class="ghost">Limpiar demo</button></div><div class="table-wrap"><table><thead><tr><th>Hora</th><th>Placa</th><th>Dpto.</th><th>Residente</th><th>Estacionamiento</th><th>Movimiento</th><th>Estado</th></tr></thead><tbody id="history"></tbody></table></div></section>
+<section class="demo"><b>Modo prueba:</b> usa <button class="chip" data-plate="ABC-123">ABC-123</button>, <button class="chip" data-plate="VER-001">VER-001</button> o <button class="chip" data-plate="XYZ-789">XYZ-789</button>. También puedes buscar por Dpto. para seleccionar rápidamente cualquiera de sus vehículos.</section>
+</main><footer>VERDI · Control de Estacionamientos · 147 espacios · S1 1–43 · S2 44–89 · S3 90–136 · S4 137–147</footer>
+<script src="app.js"></script></body></html>
