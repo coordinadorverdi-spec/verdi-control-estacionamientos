@@ -4,9 +4,11 @@ Aplicación para registrar entradas, salidas y retornos de vehículos en el acce
 
 ## Flujo operativo
 - **Vehículos dentro:** lista viva con botón `SALIÓ` de un toque.
-- **Salieron recientemente:** lista con botón `ENTRÓ` de un toque para registrar retornos sin volver a escribir la placa.
+- **Salieron recientemente:** panel desplegable con botón `ENTRÓ` de un toque para registrar retornos sin volver a escribir la placa.
 - Los movimientos pueden intercalarse libremente: A sale, B sale, A entra, C sale, B entra, etc.
 - Búsqueda por placa o departamento.
+- Placa normalizada automáticamente a seis caracteres alfanuméricos con formato `ABC-123`.
+- Una placa nueva puede registrarse y marcarse como `ENTRÓ` en el mismo paso.
 - Cada permanencia conserva su entrada y salida; un retorno genera una nueva permanencia.
 - Bicicletas: siempre asociadas a un Dpto., con cochera opcional.
 - Cocheras alquiladas: responsable externo sin Dpto.; se identifica por número de cochera y nivel de sótano.
