@@ -29,11 +29,20 @@ function getRecentReturns(){
  return Object.values(latest).filter(x=>x.type==='exit'&&!insideState[x.plate]&&vehicles[x.plate]).sort((a,b)=>(b.ts||0)-(a.ts||0)).slice(0,20);
 }
 function seedDemoExits(){
- if(localStorage.getItem('verdi_demo_seed_v2')==='1')return;
- vehicles=canonicalizeVehicles(baseVehicles);insideState={};
+ if(localStorage.getItem('verdi_demo_seed_v3')==='1')return;
  const base=Date.now()-600000;
- logs=Object.keys(vehicles).map((plate,i)=>{const v=vehicles[plate];return {plate,owner:v.owner,dept:v.dept||'—',spaces:spaceText(v),type:'exit',authorized:true,time:new Date(base+i*60000).toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit',second:'2-digit'}),date:new Date(base+i*60000).toLocaleDateString('es-PE'),ts:base+i*60000}}).reverse();
- localStorage.setItem('verdi_demo_seed_v2','1');save();
+ let added=0;
+ Object.keys(baseVehicles).forEach((plate,i)=>{
+  if(insideState[plate])return;
+  const last=logs.filter(x=>canonicalPlate(x.plate)===plate).sort((a,b)=>(b.ts||0)-(a.ts||0))[0];
+  if(last&&last.type==='exit')return;
+  const v=vehicles[plate]||baseVehicles[plate];vehicles[plate]={...baseVehicles[plate],...v};
+  const ts=base+i*60000;
+  logs.unshift({plate,owner:v.owner,dept:v.dept||'—',spaces:spaceText(v),type:'exit',authorized:true,time:new Date(ts).toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit',second:'2-digit'}),date:new Date(ts).toLocaleDateString('es-PE'),ts});
+  added++;
+ });
+ localStorage.setItem('verdi_demo_seed_v3','1');
+ if(added)save();
 }
 function buildHistory(){
  const rows=[];const open={};
@@ -103,7 +112,7 @@ $('plate').addEventListener('keydown',e=>{if(e.key==='Enter')searchPlate()});
 ['newOwner','newRelation','newDept','newType','newSpaces','newNotes'].forEach(id=>$(id).addEventListener('input',updateNewEntryState));
 $('newRelation').addEventListener('change',updateNewEntryState);$('newType').addEventListener('change',updateNewEntryState);
 $('registerVehicle').onchange=updateNewEntryState;
-$('clearBtn').onclick=()=>{if(confirm('¿Borrar movimientos y restaurar vehículos de demo?')){localStorage.removeItem('verdi_demo_seed_v2');vehicles=canonicalizeVehicles(baseVehicles);logs=[];insideState={};seedDemoExits();render();showVehicle('')}};
+$('clearBtn').onclick=()=>{if(confirm('¿Borrar movimientos y restaurar vehículos de demo?')){localStorage.removeItem('verdi_demo_seed_v3');vehicles=canonicalizeVehicles(baseVehicles);logs=[];insideState={};seedDemoExits();render();showVehicle('')}};
 document.querySelectorAll('.chip').forEach(b=>b.onclick=()=>{$('plate').value=canonicalPlate(b.dataset.plate);searchPlate()});
 document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));t.classList.add('active');const mode=t.dataset.mode;$('plateSearch').classList.toggle('hidden',mode!=='plate');$('deptSearch').classList.toggle('hidden',mode!=='dept');$('vehicleInfo').classList.add('hidden');$('newVehicle').classList.add('hidden');$('message').textContent=''});
 $('returnToggle').onclick=()=>{$('returnList').classList.toggle('collapsed');$('returnToggle').classList.toggle('open')};
