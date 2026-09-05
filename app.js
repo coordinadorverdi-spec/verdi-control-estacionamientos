@@ -2,7 +2,7 @@ const baseVehicles={
  'ABC-123':{owner:'Residente Demo',dept:'101',spaces:['1'],type:'auto',relation:'residente'},
  'VER-001':{owner:'Residente Verdi',dept:'205',spaces:['45','46'],type:'auto',relation:'residente'},
  'XYZ-789':{owner:'Visitante autorizado',dept:'1204',spaces:[],type:'auto',relation:'residente'},
- 'BIC-001':{owner:'Residente Demo',dept:'101',spaces:[],type:'bicicleta',relation:'residente'}
+ 'BIC-001':{owner:'Residente Demo',dept:'101',spaces:['2'],type:'bicicleta',relation:'residente'}
 };
 let vehicles=JSON.parse(localStorage.getItem('verdi_vehicles')||'null')||baseVehicles;
 let logs=JSON.parse(localStorage.getItem('verdi_logs')||'[]');
@@ -12,6 +12,7 @@ const $=id=>document.getElementById(id);
 function now(){return new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}
 function today(){return new Date().toLocaleDateString('es-PE')}
 function basement(n){n=Number(n);return n>=1&&n<=43?'S1':n<=89?'S2':n<=136?'S3':n<=147?'S4':'—'}
+function formatPlate(value){const raw=String(value||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6);return raw.length>3?raw.slice(0,3)+'-'+raw.slice(3):raw}
 function spaceText(v){return v.spaces&&v.spaces.length?v.spaces.map(n=>`${n} (${basement(n)})`).join(', '):'Sin cochera'}
 function relationText(v){return v.relation==='inquilino_cochera'?'Inquilino externo · sin Dpto.':'Dpto. '+(v.dept||'—')}
 function typeText(v){return v.type==='bicicleta'?'🚲 Bicicleta':v.type==='moto'?'🏍️ Moto':v.type==='auto'?'🚗 Auto':'🚙 Otro'}
@@ -32,7 +33,7 @@ function renderFastLists(){
  const inPlates=getInside().reverse();
  inside.innerHTML=inPlates.length?inPlates.map(plate=>{const v=vehicles[plate];return `<div class="fast-row"><div class="fast-main"><b>${plate}</b><small>${relationText(v)} · ${v.owner} · ${spaceText(v)}</small></div><button class="fast-btn fast-out" data-fast="${plate}" data-action="exit">SALIÓ</button></div>`}).join(''):'<div class="fast-empty">No hay vehículos dentro en este momento.</div>';
  const recent=getRecentReturns();
- returns.innerHTML=recent.length?recent.map(x=>{const v=vehicles[x.plate];return `<div class="fast-row"><div class="fast-main"><b>${x.plate}</b><small>${relationText(v)} · salió ${x.time} · ${v.owner}</small></div><button class="fast-btn fast-in" data-fast="${x.plate}" data-action="entry">ENTRÓ</button></div>`}).join(''):'<div class="fast-empty">Aquí aparecerán los vehículos que salgan y queden listos para registrar su retorno.</div>';
+ returns.innerHTML=recent.length?recent.map(x=>{const v=vehicles[x.plate];return `<div class="fast-row"><div class="fast-main"><b>${x.plate}</b><small>${relationText(v)} · salió ${x.time} · ${v.owner}</small></div><button class="fast-btn fast-in" data-fast="${x.plate}" data-action="entry">ENTRÓ</button></div>`}).join(''):'<div class="fast-empty">Aquí aparecerán los vehículos que salgan y quedarán listos para registrar su retorno.</div>';
  document.querySelectorAll('[data-fast]').forEach(b=>b.onclick=()=>{selectedPlate=b.dataset.fast;$('plate').value=selectedPlate;showVehicle(selectedPlate);movement(b.dataset.action)});
 }
 function render(){
@@ -40,25 +41,32 @@ function render(){
  const rows=buildHistory();$('history').innerHTML=rows.slice(0,50).map(x=>`<tr><td><b>${x.dept}</b></td><td><b>${x.plate}</b><br><small>${x.owner}</small></td><td>${x.exitDate}<br><b>${x.exitTime}</b></td><td>${x.entryDate}<br><b>${x.entryTime}</b></td><td>${x.spaces}</td><td><span class="badge ${x.status==='DENTRO'?'in':'out'}">${x.status}</span></td></tr>`).join('')||'<tr><td colspan="6">Sin movimientos registrados.</td></tr>';
  renderFastLists();save();
 }
-function showVehicle(plate){
- selectedPlate=plate;const v=vehicles[plate];const info=$('vehicleInfo');$('newVehicle').classList.add('hidden');
- if(!v){info.classList.remove('hidden');info.innerHTML='<b>⚠ Placa no registrada</b><br>Si el responsable fue identificado, puede registrarla y comenzar el movimiento en este mismo paso.';$('entryBtn').disabled=true;$('exitBtn').disabled=true;prepareNew();return null}
- info.classList.remove('hidden');info.innerHTML=`<div class="vehicle-main"><b>${v.owner}</b><strong>${relationText(v)}</strong></div><div>${typeText(v)} &nbsp; · &nbsp; 🅿️ <b>${spaceText(v)}</b></div><div>Estado: <b>${insideState[plate]?'🟢 DENTRO':'⚪ FUERA'}</b></div>`;
- $('entryBtn').disabled=!!insideState[plate];$('exitBtn').disabled=!insideState[plate];return v;
+function updateNewEntryState(){
+ const plate=formatPlate($('plate').value);const owner=$('newOwner').value.trim();const relation=$('newRelation').value;const dept=$('newDept').value.trim();const spaces=$('newSpaces').value.split(',').map(x=>x.trim()).filter(Boolean);const type=$('newType').value;
+ const ok=!!plate&&plate.replace('-','').length===6&&!!owner&&(relation==='inquilino_cochera'?spaces.length>0:!!dept)&&(type!=='bicicleta'||!!dept);
+ $('entryBtn').disabled=!ok;$('exitBtn').disabled=true;
 }
-function prepareNew(){ $('newVehicle').classList.remove('hidden');$('newDept').value=$('department').value||'';$('newOwner').focus() }
-function searchPlate(){const p=$('plate').value.trim().toUpperCase();if(!p){$('message').textContent='⚠ Escriba una placa.';return}showVehicle(p)}
+function showVehicle(plate){
+ selectedPlate=formatPlate(plate);$('plate').value=selectedPlate;const v=vehicles[selectedPlate];const info=$('vehicleInfo');$('newVehicle').classList.add('hidden');
+ if(!v){info.classList.remove('hidden');info.innerHTML='<b>⚠ Placa no registrada</b><br>Complete los datos del responsable para registrarla y realizar la ENTRADA en el mismo paso.';$('exitBtn').disabled=true;prepareNew();return null}
+ info.classList.remove('hidden');info.innerHTML=`<div class="vehicle-main"><b>${v.owner}</b><strong>${relationText(v)}</strong></div><div>${typeText(v)} &nbsp; · &nbsp; 🅿️ <b>${spaceText(v)}</b></div><div>Estado: <b>${insideState[selectedPlate]?'🟢 DENTRO':'⚪ FUERA'}</b></div>`;
+ $('entryBtn').disabled=!!insideState[selectedPlate];$('exitBtn').disabled=!insideState[selectedPlate];return v;
+}
+function prepareNew(){$('newVehicle').classList.remove('hidden');$('newDept').value=$('department').value||'';updateNewEntryState();$('newOwner').focus()}
+function searchPlate(){const p=formatPlate($('plate').value);$('plate').value=p;if(!p){$('message').textContent='⚠ Escriba una placa.';return}showVehicle(p)}
 function searchDept(){
  const dept=$('department').value,box=$('deptCars');if(!dept){box.innerHTML='';return}
  const list=Object.entries(vehicles).filter(([,v])=>v.dept===dept);box.innerHTML=list.length?`<div class="dept-title">Vehículos de Dpto. ${dept}</div>`+list.map(([plate,v])=>`<div class="car-row"><div><b>${plate}</b><br><span>${v.owner} · ${typeText(v)} · 🅿️ ${spaceText(v)} · ${insideState[plate]?'🟢 DENTRO':'⚪ FUERA'}</span></div><button class="quick ${insideState[plate]?'quick-out':'quick-in'}" data-quick="${plate}" data-action="${insideState[plate]?'exit':'entry'}">${insideState[plate]?'SALIÓ':'ENTRÓ'}</button></div>`).join(''):'<div class="empty">No hay vehículos registrados para este Dpto. Puede registrar una nueva placa al ingresar.</div>';
  box.querySelectorAll('[data-quick]').forEach(b=>b.onclick=()=>{selectedPlate=b.dataset.quick;$('plate').value=selectedPlate;showVehicle(selectedPlate);movement(b.dataset.action)});
 }
 function movement(type){
- let plate=selectedPlate||$('plate').value.trim().toUpperCase();let v=vehicles[plate];
+ let plate=formatPlate(selectedPlate||$('plate').value);$('plate').value=plate;let v=vehicles[plate];
  if(!v){
-  if(!$('registerVehicle').checked){$('message').textContent='⚠ Debe registrar la placa o cancelar el movimiento.';return}
+  if(type!=='entry'){$('message').textContent='⚠ Una placa nueva solo puede registrarse como ENTRADA.';return}
+  if(!$('registerVehicle').checked){$('message').textContent='⚠ Marque Registrar esta placa para continuar.';return}
   const owner=$('newOwner').value.trim(),relation=$('newRelation').value,dept=$('newDept').value.trim(),spaces=$('newSpaces').value.split(',').map(x=>x.trim()).filter(Boolean),vehicleType=$('newType').value;
   if(!owner){$('message').textContent='⚠ Complete el responsable.';return}
+  if(!/^[A-Z0-9]{3}-[A-Z0-9]{3}$/.test(plate)){$('message').textContent='⚠ La placa debe tener 6 caracteres alfanuméricos.';return}
   if(vehicleType==='bicicleta'&&!dept){$('message').textContent='⚠ La bicicleta debe estar asociada a un Dpto.';return}
   if(relation==='residente'&&!dept){$('message').textContent='⚠ Complete el Dpto. del residente.';return}
   if(relation==='inquilino_cochera'&&spaces.length===0){$('message').textContent='⚠ Para un inquilino externo indique al menos una cochera.';return}
@@ -70,9 +78,14 @@ function movement(type){
  $('message').textContent=type==='entry'?'✅ ENTRADA REGISTRADA':'✅ SALIDA REGISTRADA';selectedPlate=plate;showVehicle(plate);render();if($('department').value)searchDept();
 }
 $('searchBtn').onclick=searchPlate;$('entryBtn').onclick=()=>movement('entry');$('exitBtn').onclick=()=>movement('exit');$('deptBtn').onclick=searchDept;$('department').onchange=searchDept;
-$('plate').addEventListener('keydown',e=>{if(e.key==='Enter')searchPlate()});$('plate').addEventListener('input',()=>{$('message').textContent='';selectedPlate=''});
+$('plate').addEventListener('input',e=>{e.target.value=formatPlate(e.target.value);$('message').textContent='';selectedPlate='';if(!vehicles[e.target.value])prepareNew()});
+$('plate').addEventListener('keydown',e=>{if(e.key==='Enter')searchPlate()});
+['newOwner','newRelation','newDept','newType','newSpaces','newNotes'].forEach(id=>$(id).addEventListener('input',updateNewEntryState));
+$('newRelation').addEventListener('change',updateNewEntryState);$('newType').addEventListener('change',updateNewEntryState);
+$('registerVehicle').onchange=updateNewEntryState;
 $('clearBtn').onclick=()=>{if(confirm('¿Borrar movimientos y restaurar vehículos de demo?')){vehicles=JSON.parse(JSON.stringify(baseVehicles));logs=[];insideState={};save();render();showVehicle('')}};
 document.querySelectorAll('.chip').forEach(b=>b.onclick=()=>{$('plate').value=b.dataset.plate;searchPlate()});
 document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));t.classList.add('active');const mode=t.dataset.mode;$('plateSearch').classList.toggle('hidden',mode!=='plate');$('deptSearch').classList.toggle('hidden',mode!=='dept');$('vehicleInfo').classList.add('hidden');$('newVehicle').classList.add('hidden');$('message').textContent=''});
+$('returnToggle').onclick=()=>{$('returnList').classList.toggle('collapsed');$('returnToggle').classList.toggle('open')};
 setInterval(()=>{$('clock').textContent=new Date().toLocaleString('es-PE',{dateStyle:'medium',timeStyle:'medium'})},1000);
 renderDepartments();render();
