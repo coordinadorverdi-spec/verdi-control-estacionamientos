@@ -8,29 +8,43 @@ let logs=JSON.parse(localStorage.getItem('verdi_logs')||'[]');
 let insideState=JSON.parse(localStorage.getItem('verdi_inside')||'{}');
 let selectedPlate='';
 const $=id=>document.getElementById(id);
-function now(){return new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'})}
+function now(){return new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}
 function today(){return new Date().toLocaleDateString('es-PE')}
 function basement(n){n=Number(n);return n>=1&&n<=43?'S1':n<=89?'S2':n<=136?'S3':n<=147?'S4':'—'}
 function spaceText(v){return v.spaces&&v.spaces.length?v.spaces.map(n=>`${n} (${basement(n)})`).join(', '):'Sin cochera asignada'}
 function departments(){const a=[];a.push('101','102','103');for(let floor=2;floor<=15;floor++)for(let n=1;n<=9;n++)a.push(`${floor}${String(n).padStart(2,'0')}`);return a}
 function renderDepartments(){ $('department').innerHTML='<option value="">Seleccione Dpto.</option>'+departments().map(d=>`<option value="${d}">${d}</option>`).join('') }
 function save(){localStorage.setItem('verdi_vehicles',JSON.stringify(vehicles));localStorage.setItem('verdi_logs',JSON.stringify(logs));localStorage.setItem('verdi_inside',JSON.stringify(insideState))}
+function buildHistory(){
+ const rows=[]; const open={};
+ [...logs].reverse().forEach(x=>{
+  if(x.type==='entry'){
+   const row={plate:x.plate,dept:x.dept||'—',owner:x.owner||'—',spaces:x.spaces||'—',entryDate:x.date||'—',entryTime:x.time||'—',exitDate:'—',exitTime:'—',status:'DENTRO'};
+   rows.push(row); open[x.plate]=row;
+  } else if(x.type==='exit') {
+   const row=open[x.plate];
+   if(row){row.exitDate=x.date||'—';row.exitTime=x.time||'—';row.status='FUERA';delete open[x.plate]}
+   else rows.push({plate:x.plate,dept:x.dept||'—',owner:x.owner||'—',spaces:x.spaces||'—',entryDate:'—',entryTime:'—',exitDate:x.date||'—',exitTime:x.time||'—',status:'FUERA'});
+  }
+ });
+ return rows.reverse();
+}
 function render(){
  $('inside').textContent=Object.values(insideState).filter(Boolean).length;
  $('events').textContent=logs.filter(x=>x.date===today()).length;
  $('authorized').textContent=Object.keys(vehicles).length;
- $('history').innerHTML=logs.slice(0,15).map(x=>`<tr><td>${x.time}</td><td><b>${x.plate}</b></td><td>${x.dept||'—'}</td><td>${x.owner}</td><td>${x.spaces||'—'}</td><td>${x.type==='entry'?'Entrada':x.type==='exit'?'Salida':'Denegado'}</td><td><span class="badge ${x.type==='entry'?'in':x.type==='exit'?'out':'deny'}">${x.authorized?'AUTORIZADO':'RECHAZADO'}</span></td></tr>`).join('')||'<tr><td colspan="7">Sin movimientos registrados.</td></tr>';
+ const rows=buildHistory();
+ $('history').innerHTML=rows.slice(0,50).map(x=>`<tr><td><b>${x.dept}</b></td><td><b>${x.plate}</b><br><small>${x.owner}</small></td><td>${x.entryDate}<br><b>${x.entryTime}</b></td><td>${x.exitDate}<br><b>${x.exitTime}</b></td><td>${x.spaces}</td><td><span class="badge ${x.status==='DENTRO'?'in':'out'}">${x.status}</span></td></tr>`).join('')||'<tr><td colspan="6">Sin movimientos registrados.</td></tr>';
  save();
 }
 function showVehicle(plate){
- selectedPlate=plate; const v=vehicles[plate]; const info=$('vehicleInfo'); const nv=$('newVehicle'); nv.classList.add('hidden');
+ selectedPlate=plate; const v=vehicles[plate]; const info=$('vehicleInfo');
+ $('newVehicle').classList.add('hidden');
  if(!v){info.classList.remove('hidden');info.innerHTML='<b>⚠ Placa no registrada</b><br>Si se visualiza al residente, complete el registro rápido abajo.';$('entryBtn').disabled=true;$('exitBtn').disabled=true;prepareNew();return null}
  info.classList.remove('hidden');info.innerHTML=`<div class="vehicle-main"><b>${v.owner}</b><strong>Dpto. ${v.dept}</strong></div><div>🚗 ${v.type} &nbsp; · &nbsp; 🅿️ Cocheras: <b>${spaceText(v)}</b></div><div>Estado: <b>${insideState[plate]?'🟢 DENTRO':'⚪ FUERA'}</b></div>`;
  $('entryBtn').disabled=!!insideState[plate];$('exitBtn').disabled=!insideState[plate];return v;
 }
-function prepareNew(){
- $('newVehicle').classList.remove('hidden');$('newDept').value=$('department').value||'';$('newOwner').focus();
-}
+function prepareNew(){ $('newVehicle').classList.remove('hidden');$('newDept').value=$('department').value||'';$('newOwner').focus(); }
 function searchPlate(){showVehicle($('plate').value.trim().toUpperCase())}
 function searchDept(){
  const dept=$('department').value;const box=$('deptCars');if(!dept){box.innerHTML='';return}
