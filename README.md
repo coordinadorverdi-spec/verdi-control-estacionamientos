@@ -10,7 +10,7 @@ Aplicación para registrar entradas, salidas y retornos de vehículos en el acce
 - Placa normalizada automáticamente a seis caracteres alfanuméricos con formato `ABC-123`.
 - Una placa nueva puede registrarse y marcarse como `ENTRÓ` en el mismo paso.
 - Cada permanencia conserva su entrada y salida; un retorno genera una nueva permanencia.
-- Bicicletas: siempre asociadas a un Dpto., con cochera opcional.
+- Bicicletas: siempre asociadas a un Dpto.; pueden tener o no cochera.
 - Cocheras alquiladas: responsable externo sin Dpto.; se identifica por número de cochera y nivel de sótano.
 
 ## Infraestructura
