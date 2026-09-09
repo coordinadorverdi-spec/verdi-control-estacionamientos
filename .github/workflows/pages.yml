@@ -18,6 +18,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Fix department selector
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          old='<input id="dept" list="depts" inputmode="numeric" placeholder="Ej. 103 o 908">'
+          new='<select id="dept"><option value="">-- Seleccione Dpto. --</option></select>'
+          if old in s:
+              s=s.replace(old,new,1)
+          patch='''<script>\n(function(){const t=setInterval(function(){const e=document.getElementById('dept');if(!e||typeof depts==='undefined'||!depts.length)return;e.innerHTML='<option value="">-- Seleccione Dpto. --</option>'+depts.map(function(d){return '<option value="'+String(d.code).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'">'+String(d.code).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</option>';}).join('');clearInterval(t);},200);})();\n</script>'''
+          if 'Seleccione Dpto.' not in s:
+              s=s.replace('</body>',patch+'</body>')
+          p.write_text(s,encoding='utf-8')
+          PY
       - uses: actions/configure-pages@v5
         with:
           enablement: true
