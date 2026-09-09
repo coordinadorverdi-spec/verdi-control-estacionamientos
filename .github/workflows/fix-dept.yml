@@ -1,0 +1,46 @@
+name: Fix department selector
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-dept.yml'
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch department selector
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          old='<input id="dept" list="depts" inputmode="numeric" placeholder="Ej. 103 o 908">'
+          new='<select id="dept"><option value="">-- Seleccione Dpto. --</option></select>'
+          if old in s:
+              s=s.replace(old,new,1)
+          patch="""
+          <script>
+          (function(){
+            const timer=setInterval(function(){
+              const el=document.getElementById('dept');
+              if(!el || !Array.isArray(window.depts) || !window.depts.length) return;
+              el.innerHTML='<option value="">-- Seleccione Dpto. --</option>'+window.depts.map(function(d){return '<option value="'+String(d.code).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'">'+String(d.code).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</option>';}).join('');
+              clearInterval(timer);
+            },200);
+          })();
+          </script>
+          """
+          if 'Fix department selector runtime patch' not in s:
+              s=s.replace('</body>','<!-- Fix department selector runtime patch -->\n<!-- Fix department selector runtime patch -->\n'+patch+'</body>')
+          p.write_text(s,encoding='utf-8')
+          PY
+      - name: Commit patch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git diff --cached --quiet && exit 0
+          git commit -m 'Corrige selector de Dpto. en registro vehicular'
+          git push
