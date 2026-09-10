@@ -6,6 +6,7 @@ if marker in s: raise SystemExit(0)
 patch=r'''<!-- Verdi UI correction patch v10 -->
 <script>
 (function(){
+  const baseRender=window.render;
   const keyPlate=v=>String(v?.plate||v?.code_label||'').trim().toUpperCase();
   const latestEventFor=v=>events.filter(e=>e.vehicle_id===v.id).slice().sort((a,b)=>new Date(b.event_time)-new Date(a.event_time))[0]||null;
   const dedupeVehicles=list=>{
@@ -17,44 +18,15 @@ patch=r'''<!-- Verdi UI correction patch v10 -->
     return [...m.values()];
   };
   window.render=function(){
-    // Keep all existing rendering (including PERMANENCIAS), then replace only
-    // DENTRO and SALIERON with state-based, de-duplicated views.
-    if(typeof window.__verdiRenderBase==='function') window.__verdiRenderBase();
-    else if(typeof oldRender==='function') oldRender();
+    if(typeof baseRender==='function') baseRender();
     const insideVehicles=dedupeVehicles(vehicles.filter(v=>inside(v)));
     $('insideList').innerHTML=insideVehicles.map(v=>{
       const p=parkingOf(v), park=p?(' - '+p.n+' '+p.s):'';
       return '<div class="row in"><span><b>'+esc(keyPlate(v))+'</b> D. '+esc(deptCode(v.department_id))+park+'</span><button class="btn" style="width:auto" onclick="move(\\'salida\\',\\''+v.id+'\\')">SALIÓ</button></div>';
     }).join('')||'No hay vehículos dentro.';
 
-    // One SALIERON row per vehicle/plate. A vehicle remains here only while its
-    // latest movement is SALIDA; once ENTRÓ is saved it disappears immediately.
-    const candidates=new Map();
-    for(const e of events){
-      if(e.movement!=='salida') continue;
-      const v=vehicles.find(x=>x.id===e.vehicle_id);
-      if(!v) continue;
-      const k=keyPlate(v)||keyPlate(e)||('ID:'+e.vehicle_id), old=candidates.get(k);
-      if(!old || new Date(e.event_time)>new Date(old.event_time)) candidates.set(k,e);
-    }
-    const outs=[...candidates.values()].filter(e=>{
-      const v=vehicles.find(x=>x.id===e.vehicle_id), last=v?latestEventFor(v):null;
-      return last?.id===e.id && last?.movement==='salida';
-    }).sort((a,b)=>new Date(b.event_time)-new Date(a.event_time)).slice(0,30);
-    $('recentList').innerHTML=outs.map(e=>{
-      const v=vehicles.find(x=>x.id===e.vehicle_id), p=parkingOf(v)||parkingOfEvent(e), park=p?(' - '+p.n+' '+p.s):'';
-      return '<div class="row out"><span><b>'+esc(keyPlate(v)||e.plate||'—')+'</b> D. '+esc(deptCode(v?.department_id||e.department_id))+park+'</span><button class="btn" style="width:auto" onclick="registerEntryFromExit(\\''+e.id+'\\')">[E]</button></div>';
-    }).join('')||'No hay salidas recientes.';
-  };
-  // Preserve the render wrapper installed by v8/v9 as the base renderer.
-  window.__verdiRenderBase=window.render;
-  window.render=function(){
-    window.__verdiRenderBase();
-    const insideVehicles=dedupeVehicles(vehicles.filter(v=>inside(v)));
-    $('insideList').innerHTML=insideVehicles.map(v=>{
-      const p=parkingOf(v), park=p?(' - '+p.n+' '+p.s):'';
-      return '<div class="row in"><span><b>'+esc(keyPlate(v))+'</b> D. '+esc(deptCode(v.department_id))+park+'</span><button class="btn" style="width:auto" onclick="move(\\'salida\\',\\''+v.id+'\\')">SALIÓ</button></div>';
-    }).join('')||'No hay vehículos dentro.';
+    // SALIERON shows only the latest exit for each vehicle/plate. If a new
+    // ENTRADA is recorded, that vehicle is no longer shown here.
     const candidates=new Map();
     for(const e of events){
       if(e.movement!=='salida') continue;
