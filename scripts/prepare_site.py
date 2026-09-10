@@ -56,9 +56,9 @@ if marker not in s:
 '''
     s = s.replace('</body>', patch + '</body>')
 
-ui_marker = '<!-- Verdi UI correction patch -->'
+ui_marker = '<!-- Verdi UI correction patch v2 -->'
 if ui_marker not in s:
-    ui_patch = r'''<!-- Verdi UI correction patch -->
+    ui_patch = r'''<!-- Verdi UI correction patch v2 -->
 <script>
 (function(){
   const basementFor=function(raw){
@@ -70,72 +70,129 @@ if ui_marker not in s:
     if(n>=137&&n<=147) return 'S4';
     return '—';
   };
-  const parkingList=function(v){
+  const parkingEntries=function(v){
+    const out=[];
     const raw=v?.authorized_parking_spaces??'';
-    const arr=String(raw).split(',').map(x=>x.trim()).filter(Boolean);
+    String(raw).split(',').map(x=>x.trim()).filter(Boolean).forEach(x=>out.push({number:x,basement:basementFor(x)}));
+    if(v?._linkedParking) v._linkedParking.forEach(x=>{if(!out.some(y=>String(y.number)===String(x.number)))out.push(x)});
+    if(!out.length && v?.parking_space_id){const p=(spaces||[]).find(x=>x.id===v.parking_space_id);if(p)out.push({number:p.space_number,basement:p.basement})}
+    return out;
+  };
+  const parkingList=function(v){
+    const arr=parkingEntries(v||{});
     if(!arr.length) return 'Cochera no registrada';
-    return arr.map(x=>{
-      const n=parseInt(x,10);
-      const label=Number.isFinite(n)?String(n):x;
-      return 'Cochera '+esc(label)+' — '+esc(basementFor(x));
-    }).join('<br>');
+    return arr.map(x=>'Cochera '+esc(x.number)+' — '+esc(x.basement||basementFor(x.number))).join('<br>');
   };
   const vehicleForEvent=function(e){return (vehicles||[]).find(v=>v.id===e.vehicle_id)||null};
-  const localDateTime=function(iso){
-    const d=new Date(iso);const p=n=>String(n).padStart(2,'0');
-    return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'T'+p(d.getHours())+':'+p(d.getMinutes());
+  const normalized=function(x){return String(x??'').trim().toLowerCase()};
+  const matches=function(v,q){if(!q)return true;return [v?.plate,v?.code_label,deptCode(v?.department_id),v?.responsible_name,v?.authorized_parking_spaces].filter(Boolean).join(' ').toLowerCase().includes(q)};
+  const eventMatches=function(e,q){const v=vehicleForEvent(e);return [e?.plate,v?.plate,deptCode(e?.department_id||v?.department_id),v?.authorized_parking_spaces].filter(Boolean).join(' ').toLowerCase().includes(q)};
+
+  async function loadLinkedParking(){
+    const r=await sb.from('vehicle_parking_spaces').select('vehicle_id,parking_space_id,active').eq('building_id',BUILDING_ID).eq('active',true);
+    if(r.error){console.warn(r.error);return}
+    (vehicles||[]).forEach(v=>v._linkedParking=[]);
+    (r.data||[]).forEach(x=>{const v=(vehicles||[]).find(y=>y.id===x.vehicle_id);const p=(spaces||[]).find(y=>y.id===x.parking_space_id);if(v&&p)v._linkedParking.push({number:p.space_number,basement:p.basement})});
+  }
+
+  const originalLoad=window.load;
+  window.load=async function(){await originalLoad();await loadLinkedParking();if(typeof window.render==='function')window.render();};
+
+  async function saveParkingForVehicle(v){
+    if(!v)return;
+    const raw=String($('spaces')?.value||'').trim();
+    if(!raw)return;
+    const clean=raw.split(',').map(x=>x.trim()).filter(Boolean).join(',');
+    const nums=clean.split(',').map(x=>parseInt(x,10)).filter(Number.isFinite);
+    const first=nums.length?basementFor(nums[0]):null;
+    const r=await sb.from('vehicles').update({authorized_parking_spaces:clean,parking_basement:first,parking_required:true}).eq('id',v.id).eq('building_id',BUILDING_ID);
+    if(r.error)throw r.error;
+  }
+
+  const originalMove=window.move;
+  window.move=async function(action,id){
+    if(action==='entrada'){
+      let v=(vehicles||[]).find(x=>x.id===id);
+      const raw=String($('code')?.value||'').trim().toUpperCase();
+      if(!v&&raw)v=(vehicles||[]).find(x=>String(x.plate||x.code_label||'').toUpperCase()===raw);
+      try{if(v)await saveParkingForVehicle(v)}catch(err){console.error(err);setMsg('msg','No se pudo guardar la cochera: '+(err.message||err));return}
+    }
+    await originalMove(action,id);
+    if(action==='entrada'){
+      const raw=String($('code')?.value||'').trim().toUpperCase();
+      if(raw){const v=(vehicles||[]).find(x=>String(x.plate||x.code_label||'').toUpperCase()===raw);if(v)try{await saveParkingForVehicle(v)}catch(err){console.error(err)}}
+    }
+    await load();
   };
+
+  window.registerEntryFromExit=async function(id){
+    const v=(vehicles||[]).find(x=>x.id===id);if(!v)return;
+    await window.move('entrada',id);
+  };
+
   window.editAccessEvent=async function(id){
     if(!canAdmin()){setMsg('msg','Solo Master/Admin puede editar permanencias.');return}
     const e=(events||[]).find(x=>x.id===id);if(!e)return;
-    const movement=prompt('Movimiento (entrada o salida):',e.movement||'');
-    if(movement===null)return;
-    const m=movement.trim().toLowerCase();
-    if(m!=='entrada'&&m!=='salida'){alert('El movimiento debe ser entrada o salida.');return}
-    const dt=prompt('Fecha y hora (formato AAAA-MM-DDTHH:MM):',localDateTime(e.event_time));
-    if(dt===null)return;
-    const parsed=new Date(dt);
-    if(Number.isNaN(parsed.getTime())){alert('Fecha/hora no válida.');return}
+    const oldPlate=e.plate||vehicleForEvent(e)?.plate||'';
+    const oldDept=deptCode(e.department_id||vehicleForEvent(e)?.department_id);
+    const plate=prompt('Placa / código:',oldPlate);
+    if(plate===null)return;
+    const newPlate=plate.trim().toUpperCase();
+    if(!newPlate){alert('La placa/código no puede quedar vacía.');return}
+    const dept=prompt('Dpto. asociado (deje vacío si no corresponde):',oldDept==='—'?'':oldDept);
+    if(dept===null)return;
+    let department_id=null;
+    const dq=String(dept).trim().toUpperCase().replace(/^DPTO\.?\s*/,'');
+    if(dq){const d=(depts||[]).find(x=>String(x.code||'').toUpperCase()===dq);if(!d){alert('Dpto. no encontrado: '+dq);return}department_id=d.id}
     try{
-      const r=await sb.from('access_events').update({movement:m,event_time:parsed.toISOString()}).eq('id',id).eq('building_id',BUILDING_ID);
+      const r=await sb.from('access_events').update({plate:newPlate,department_id}).eq('id',id).eq('building_id',BUILDING_ID);
       if(r.error)throw r.error;
-      if(typeof audit==='function')await audit('EDITAR','access_event',{id:id,movement:m,event_time:parsed.toISOString()});
+      if(typeof audit==='function')await audit('EDITAR','access_event',{id,plate:newPlate,department_id});
       await load();
     }catch(err){console.error(err);setMsg('msg','No se pudo editar: '+(err.message||err))}
   };
+
   window.deleteAccessEvent=async function(id){
     if(!canAdmin()){setMsg('msg','Solo Master/Admin puede eliminar permanencias.');return}
     const e=(events||[]).find(x=>x.id===id);if(!e)return;
-    if(!confirm('¿Eliminar esta permanencia?\n'+(e.plate||'—')+' · '+(e.movement||'')+' · '+new Date(e.event_time).toLocaleString('es-PE')) )return;
+    if(!confirm('¿Eliminar esta permanencia?\n'+(e.plate||'—')+' · '+(e.movement||'')+' · '+new Date(e.event_time).toLocaleString('es-PE')))return;
     try{
-      const r=await sb.from('access_events').delete().eq('id',id).eq('building_id',BUILDING_ID);
-      if(r.error)throw r.error;
-      if(typeof audit==='function')await audit('ELIMINAR','access_event',{id:id,plate:e.plate||null,movement:e.movement||null});
+      const r=await sb.from('access_events').delete().eq('id',id).eq('building_id',BUILDING_ID);if(r.error)throw r.error;
+      if(typeof audit==='function')await audit('ELIMINAR','access_event',{id,plate:e.plate||null,movement:e.movement||null});
       await load();
     }catch(err){console.error(err);setMsg('msg','No se pudo eliminar: '+(err.message||err))}
   };
+
+  function ensureFilter(sectionId,inputId,placeholder){
+    const section=$(sectionId);if(!section)return null;
+    let input=$(inputId);if(!input){const h=section.querySelector('h2');input=document.createElement('input');input.id=inputId;input.placeholder=placeholder;input.autocomplete='off';h?.after(input)}
+    return input;
+  }
+  const insideFilter=ensureFilter('inside','insideFilter','Buscar por placa o Dpto.');
+  const recentFilter=ensureFilter('recent','recentFilter','Buscar por placa o Dpto.');
+
   const originalRender=window.render;
   window.render=function(){
     originalRender();
+    const iq=normalized(insideFilter?.value),rq=normalized(recentFilter?.value);
     const insideEl=$('insideList');
-    if(insideEl) insideEl.innerHTML=(vehicles||[]).filter(inside).map(v=>'<div class="row in"><span><b>'+esc(v.plate||v.code_label)+'</b> · '+typeName(v.vehicle_type)+'<br>'+parkingList(v)+'</span><button class="btn" onclick="move(\'salida\',\''+v.id+'\')">SALIÓ</button></div>').join('')||'No hay vehículos dentro.';
-    const outs=(events||[]).filter(e=>e.movement==='salida').slice().reverse().slice(0,30);
+    if(insideEl)insideEl.innerHTML=(vehicles||[]).filter(inside).filter(v=>matches(v,iq)).map(v=>'<div class="row in"><span><b>'+esc(v.plate||v.code_label)+'</b> · '+typeName(v.vehicle_type)+'<br>'+parkingList(v)+'</span><button class="btn" onclick="move(\'salida\',\''+v.id+'\')">SALIÓ</button></div>').join('')||'No hay vehículos que coincidan.';
+    const outs=(events||[]).filter(e=>e.movement==='salida').slice().reverse().filter(e=>eventMatches(e,rq)).slice(0,50);
     const recentEl=$('recentList');
-    if(recentEl) recentEl.innerHTML=outs.map(e=>{const v=vehicleForEvent(e);return '<div class="row out"><span><b>'+esc(e.plate||v?.plate||'—')+'</b> · '+typeName(e.vehicle_type||v?.vehicle_type)+'<br>'+parkingList(v||{})+'<br>'+new Date(e.event_time).toLocaleString('es-PE')+'</span></div>'}).join('')||'No hay salidas recientes.';
+    if(recentEl)recentEl.innerHTML=outs.map(e=>{const v=vehicleForEvent(e);return '<div class="row out"><span><b>'+esc(e.plate||v?.plate||'—')+'</b> · '+typeName(e.vehicle_type||v?.vehicle_type)+'<br>'+parkingList(v||{})+'<br>'+new Date(e.event_time).toLocaleString('es-PE')+'</span><button class="btn primary" style="width:auto" onclick="registerEntryFromExit(\''+(v?.id||e.vehicle_id||'')+'\')">ENTRÓ</button></div>'}).join('')||'No hay salidas que coincidan.';
     const histEl=$('histList');
-    if(histEl) histEl.innerHTML=(events||[]).slice().reverse().map(e=>{const v=vehicleForEvent(e);const actions=canAdmin()?'<button class="btn" style="width:auto;margin-right:4px" onclick="editAccessEvent(\''+e.id+'\')">Editar</button><button class="btn danger" style="width:auto" onclick="deleteAccessEvent(\''+e.id+'\')">Eliminar</button>':'';return '<tr><td>'+deptCode(e.department_id||v?.department_id)+'</td><td>'+esc(e.plate||v?.plate||'—')+'</td><td>'+typeName(e.vehicle_type||v?.vehicle_type)+'</td><td>'+esc(e.movement||'')+'</td><td>'+new Date(e.event_time).toLocaleString('es-PE')+'</td><td>'+parkingList(v||{})+'</td><td>'+actions+'</td></tr>'}).join('');
+    if(histEl)histEl.innerHTML=(events||[]).slice().reverse().map(e=>{const v=vehicleForEvent(e);const actions=canAdmin()?'<button class="btn" style="width:auto;margin-right:4px" onclick="editAccessEvent(\''+e.id+'\')">Editar</button><button class="btn danger" style="width:auto" onclick="deleteAccessEvent(\''+e.id+'\')">Eliminar</button>':'';return '<tr><td>'+deptCode(e.department_id||v?.department_id)+'</td><td>'+esc(e.plate||v?.plate||'—')+'</td><td>'+typeName(e.vehicle_type||v?.vehicle_type)+'</td><td>'+esc(e.movement||'')+'</td><td>'+new Date(e.event_time).toLocaleString('es-PE')+'</td><td>'+parkingList(v||{})+'</td><td>'+actions+'</td></tr>'}).join('');
   };
-  const histTable=$('histList');
-  if(histTable){const tr=histTable.closest('table');if(tr){const th=tr.querySelector('thead tr');if(th&&!th.querySelector('[data-parking-head]')){const h=document.createElement('th');h.textContent='Cochera / sótano';h.setAttribute('data-parking-head','1');th.appendChild(h);const a=document.createElement('th');a.textContent='Acciones';a.setAttribute('data-actions-head','1');th.appendChild(a)}}}
+
+  const histList=$('histList');
+  if(histList){const table=histList.closest('table');const head=table?.querySelector('thead tr');if(head&&!head.querySelector('[data-parking-head]')){const h=document.createElement('th');h.textContent='Cochera / sótano';h.dataset.parkingHead='1';head.appendChild(h);const a=document.createElement('th');a.textContent='Acciones';a.dataset.actionsHead='1';head.appendChild(a)}}
+  [insideFilter,recentFilter].forEach(x=>x&&x.addEventListener('input',()=>window.render()));
+
   const finder=$('finder');
-  if(finder){
-    finder.addEventListener('input',function(){
-      const q=String(this.value||'').trim().toLowerCase();
-      const list=(vehicles||[]).filter(v=>{if(!q)return true;const hay=[v.plate,v.code_label,v.responsible_name,deptCode(v.department_id),v.authorized_parking_spaces].filter(Boolean).join(' ').toLowerCase();return hay.includes(q)});
-      const out=$('findList');
-      if(out)out.innerHTML=list.map(v=>'<div class="row"><span><b>'+esc(v.plate||v.code_label)+'</b> · '+typeName(v.vehicle_type)+'<br>'+esc(v.responsible_name||'—')+' · '+relName(v.relationship)+' · Dpto. '+deptCode(v.department_id)+'<br>'+parkingList(v)+'</span></div>').join('')||'Sin resultados.';
-    });
-  }
+  if(finder)finder.addEventListener('input',function(){
+    const q=normalized(this.value);const list=(vehicles||[]).filter(v=>matches(v,q));const out=$('findList');
+    if(out)out.innerHTML=list.map(v=>'<div class="row"><span><b>'+esc(v.plate||v.code_label)+'</b> · '+typeName(v.vehicle_type)+'<br>'+esc(v.responsible_name||'—')+' · '+relName(v.relationship)+' · Dpto. '+deptCode(v.department_id)+'<br>'+parkingList(v)+'</span></div>').join('')||'Sin resultados.';
+  });
 })();
 </script>
 '''
