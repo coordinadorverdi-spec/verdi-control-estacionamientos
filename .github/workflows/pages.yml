@@ -30,6 +30,8 @@ jobs:
         run: python scripts/fix_ui_v6.py
       - name: Apply UI corrections v7
         run: python scripts/fix_ui_v7.py
+      - name: Apply UI corrections v8
+        run: python scripts/fix_ui_v8.py
       - uses: actions/configure-pages@v5
         with:
           enablement: true
