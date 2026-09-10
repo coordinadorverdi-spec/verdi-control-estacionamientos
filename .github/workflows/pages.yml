@@ -20,6 +20,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Prepare site
         run: python scripts/prepare_site.py
+      - name: Apply UI corrections v3
+        run: python scripts/fix_ui_v3.py
       - uses: actions/configure-pages@v5
         with:
           enablement: true
