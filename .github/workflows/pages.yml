@@ -58,6 +58,10 @@ jobs:
         run: python scripts/fix_ui_v20.py
       - name: Apply UI corrections v21
         run: python scripts/fix_ui_v21.py
+      - name: Apply UI corrections v22
+        run: python scripts/fix_ui_v22.py
+      - name: Apply UI corrections v23
+        run: python scripts/fix_ui_v23.py
       - uses: actions/configure-pages@v5
         with:
           enablement: true
