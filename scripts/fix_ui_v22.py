@@ -16,7 +16,7 @@ patch=r'''<!-- Verdi UI correction patch v22 -->
   function v22Attach(box){box.querySelectorAll('.v22move').forEach(b=>{b.onclick=async()=>{b.disabled=true;try{await window.move(b.dataset.action,b.dataset.id)}finally{b.disabled=false}}})}
   function v22Row(v,kind){
     const action=kind==='S'?'salida':'entrada';
-    const button='<button type="button" class="v22move btn" data-action="'+action+'" data-id="'+v21Esc(v.id)+'">'+kind+'</button>';
+    const button='<button type="button" class="v22move btn" data-action="'+action+'" data-id="'+v22Esc(v.id)+'">'+kind+'</button>';
     return '<div class="v22row"><span class="v22data"><b>'+v22Esc(v.plate||v.code_label)+'</b> • D '+v22Esc(v22Dept(v))+' • '+v22Esc(v22Park(v))+' • '+v22Esc(v22Basement(v))+'</span>'+button+(kind==='I'?'<div class="v22sub">'+v22Esc(v.responsible_name||'—')+' - '+v22Esc(v.relationship==='visita'?'Visita':v.relationship||'—')+'</div>':'')+'</div>';
   }
   function renderInside22(){
