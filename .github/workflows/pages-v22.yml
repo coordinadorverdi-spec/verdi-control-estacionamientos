@@ -1,0 +1,70 @@
+name: Deploy site to GitHub Pages v22
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: true
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare site
+        run: python scripts/prepare_site.py
+      - name: Apply UI corrections v3
+        run: python scripts/fix_ui_v3.py
+      - name: Apply UI corrections v4
+        run: python scripts/fix_ui_v4.py
+      - name: Apply UI corrections v5
+        run: python scripts/fix_ui_v5.py
+      - name: Apply UI corrections v6
+        run: python scripts/fix_ui_v6.py
+      - name: Apply UI corrections v7
+        run: python scripts/fix_ui_v7.py
+      - name: Apply UI corrections v8
+        run: python scripts/fix_ui_v8.py
+      - name: Apply UI corrections v9
+        run: python scripts/fix_ui_v9.py
+      - name: Apply UI corrections v10
+        run: python scripts/fix_ui_v10.py
+      - name: Apply UI corrections v11
+        run: python scripts/fix_ui_v11.py
+      - name: Apply UI corrections v12
+        run: python scripts/fix_ui_v12.py
+      - name: Apply UI corrections v13
+        run: python scripts/fix_ui_v13.py
+      - name: Apply UI corrections v14
+        run: python scripts/fix_ui_v14.py
+      - name: Apply UI corrections v15
+        run: python scripts/fix_ui_v15.py
+      - name: Apply UI corrections v16
+        run: python scripts/fix_ui_v16.py
+      - name: Apply UI corrections v17
+        run: python scripts/fix_ui_v17.py
+      - name: Apply UI corrections v18
+        run: python scripts/fix_ui_v18.py
+      - name: Apply UI corrections v19
+        run: python scripts/fix_ui_v19.py
+      - name: Apply UI corrections v20
+        run: python scripts/fix_ui_v20.py
+      - name: Apply UI corrections v21
+        run: python scripts/fix_ui_v21.py
+      - name: Apply UI corrections v22
+        run: python scripts/fix_ui_v22.py
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+      - id: deployment
+        uses: actions/deploy-pages@v4
